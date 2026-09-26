@@ -9,9 +9,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 import pulsewatch
-from pulsewatch.api.routes import health
+from pulsewatch.api.routes import health, sites
 from pulsewatch.config import Settings
-from pulsewatch.db.engine import create_engine
+from pulsewatch.db.engine import create_engine, create_sessionmaker
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -20,6 +20,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.engine = create_engine(settings)
+        app.state.sessionmaker = create_sessionmaker(app.state.engine)
         try:
             yield
         finally:
@@ -27,4 +28,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="pulseWatch", version=pulsewatch.__version__, lifespan=lifespan)
     app.include_router(health.router)
+    app.include_router(sites.router)
     return app
