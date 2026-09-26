@@ -1,4 +1,4 @@
-from pathlib import Path
+from collections.abc import Callable
 
 import pytest
 from alembic import command
@@ -7,14 +7,7 @@ from sqlalchemy import URL, create_engine, inspect, text
 
 pytestmark = pytest.mark.db
 
-ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
-
-
-def alembic_config(url: URL) -> Config:
-    config = Config(ALEMBIC_INI)
-    config.attributes["database_url"] = url.render_as_string(hide_password=False)
-    config.attributes["configure_logger"] = False
-    return config
+AlembicConfig = Callable[[URL], Config]
 
 
 def table_names(url: URL) -> set[str]:
@@ -25,7 +18,9 @@ def table_names(url: URL) -> set[str]:
         engine.dispose()
 
 
-def test_migrations_upgrade_downgrade_round_trip(database_url: URL) -> None:
+def test_migrations_upgrade_downgrade_round_trip(
+    database_url: URL, alembic_config: AlembicConfig
+) -> None:
     config = alembic_config(database_url)
 
     command.upgrade(config, "head")
@@ -55,7 +50,7 @@ def test_migrations_upgrade_downgrade_round_trip(database_url: URL) -> None:
     assert {"sites", "checks"} <= table_names(database_url)
 
 
-def test_models_match_migrations(database_url: URL) -> None:
+def test_models_match_migrations(database_url: URL, alembic_config: AlembicConfig) -> None:
     config = alembic_config(database_url)
     command.upgrade(config, "head")
 
@@ -63,7 +58,9 @@ def test_models_match_migrations(database_url: URL) -> None:
     command.check(config)
 
 
-def test_deleting_a_site_deletes_its_checks(database_url: URL) -> None:
+def test_deleting_a_site_deletes_its_checks(
+    database_url: URL, alembic_config: AlembicConfig
+) -> None:
     command.upgrade(alembic_config(database_url), "head")
     engine = create_engine(database_url)
     try:
