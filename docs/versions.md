@@ -14,6 +14,8 @@ Python packages are pinned exactly in `uv.lock`. This table records the versions
 
 | Library           | Version | Where it is pinned |
 |-------------------|---------|--------------------|
+| FastAPI           | 0.141.1 | `uv.lock`          |
+| uvicorn           | 0.54.0  | `uv.lock`          |
 | SQLAlchemy        | 2.1.1   | `uv.lock`          |
 | Alembic           | 1.20.0  | `uv.lock`          |
 | psycopg           | 3.3.6   | `uv.lock`          |
@@ -27,6 +29,7 @@ Python packages are pinned exactly in `uv.lock`. This table records the versions
 | Ruff       | 0.16.9  | `uv.lock`, pre-commit `ruff-pre-commit` hook     |
 | mypy       | 2.3.1   | `uv.lock` (standard mode in v0.1, strict in v0.2) |
 | pytest     | 9.1.1   | `uv.lock`                                        |
+| httpx2     | 2.13.1  | `uv.lock` (test client for FastAPI/Starlette)    |
 | pre-commit | 4.6.2   | `uv.lock`                                        |
 | pre-commit-hooks | 6.0.0 | `.pre-commit-config.yaml`                  |
 
