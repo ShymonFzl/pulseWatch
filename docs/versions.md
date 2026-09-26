@@ -22,3 +22,13 @@ Python packages are pinned exactly in `uv.lock`. This table records the versions
 | pre-commit-hooks | 6.0.0 | `.pre-commit-config.yaml`                  |
 
 Keep the Ruff version in `.pre-commit-config.yaml` aligned with `uv.lock`.
+
+## CI (GitHub Actions)
+
+Actions are pinned by commit SHA in `.github/workflows/`, and Dependabot updates them.
+
+| Component          | Version      |
+|--------------------|--------------|
+| Runner image       | ubuntu-24.04 |
+| actions/checkout   | v7.0.1       |
+| astral-sh/setup-uv | v10.2.0      |

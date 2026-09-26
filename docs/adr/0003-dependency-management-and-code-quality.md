@@ -9,7 +9,7 @@ Builds must be reproducible on laptops, in CI and in Docker images. Every change
 
 ## Decision
 
-- **uv** manages the Python version, the virtual environment and dependencies. Dependencies are declared in `pyproject.toml` and pinned in a committed `uv.lock`. CI and Docker builds install with `uv sync --frozen`, so a lockfile that is out of date fails the build.
+- **uv** manages the Python version, the virtual environment and dependencies. Dependencies are declared in `pyproject.toml` and pinned in a committed `uv.lock`. CI installs with `uv sync --locked`, which fails if `uv.lock` is out of date with `pyproject.toml`. Docker builds use `uv sync --frozen`, which installs exactly what the lockfile says without re-resolving; the lockfile has already been checked by CI.
 - **Ruff** is the only linter and formatter (it replaces flake8, isort and black). The rule set includes bugbear, pyupgrade and the bandit security rules (`S`).
 - **mypy** checks `src/` and `tests/`: **standard mode in v0.1** (with `check_untyped_defs` and unused-ignore warnings), **strict mode in v0.2**.
 - **pytest** runs the tests.
