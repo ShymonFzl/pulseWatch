@@ -1,0 +1,24 @@
+# Tool versions
+
+Single reference for the versions used by pulseWatch. Update this file in the same PR as any version change.
+Python packages are pinned exactly in `uv.lock`. This table records the versions that matter for reviewing and reproducing the project.
+
+## Runtime
+
+| Component  | Version | Where it is pinned                              | Notes |
+|------------|---------|-------------------------------------------------|-------|
+| Python     | 3.14    | `.python-version`, `requires-python`             | Fallback to 3.13 if a dependency blocks |
+| PostgreSQL | 17      | `compose.yaml` (issue #6)                        | Chosen for the planned Amazon RDS target |
+
+## Development tools
+
+| Tool       | Version | Where it is pinned                              |
+|------------|---------|-------------------------------------------------|
+| uv         | 0.12.19 | `build-system` (`uv_build>=0.12,<0.13`), pre-commit `uv-lock` hook |
+| Ruff       | 0.16.9  | `uv.lock`, pre-commit `ruff-pre-commit` hook     |
+| mypy       | 2.3.1   | `uv.lock` (standard mode in v0.1, strict in v0.2) |
+| pytest     | 9.1.1   | `uv.lock`                                        |
+| pre-commit | 4.6.2   | `uv.lock`                                        |
+| pre-commit-hooks | 6.0.0 | `.pre-commit-config.yaml`                  |
+
+Keep the Ruff version in `.pre-commit-config.yaml` aligned with `uv.lock`.
