@@ -47,6 +47,24 @@ jobs:
     name: test
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    services:
+      # Keep the digest aligned with compose.yaml (Dependabot does not update service images).
+      postgres:
+        image: postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+        env:
+          # Throwaway database reachable only from this runner: not a secret.
+          POSTGRES_USER: pulsewatch
+          POSTGRES_PASSWORD: pulsewatch
+          POSTGRES_DB: pulsewatch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pulsewatch -d pulsewatch"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://pulsewatch:pulsewatch@localhost:5432/pulsewatch
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -60,5 +78,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      # CI=true (set by GitHub) makes database tests fail instead of skip.
       - name: pytest
         run: uv run pytest

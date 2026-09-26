@@ -7,6 +7,7 @@ Uptime monitoring platform built with production practices: containers, infrastr
 - Infrastructure, Kubernetes and CI changes: propose the design first, implement only after approval.
 - Record every architecture decision as an ADR in `docs/adr/`.
 - One issue per task, one pull request per change, conventional commit messages.
+- PR descriptions cover the change only: no notes about the local development environment.
 
 ## Quality gates
 - After each change, run the relevant checks: tests, `terraform fmt` and `validate`, `helm lint`, `trivy`.

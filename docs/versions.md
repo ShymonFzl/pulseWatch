@@ -8,7 +8,16 @@ Python packages are pinned exactly in `uv.lock`. This table records the versions
 | Component  | Version | Where it is pinned                              | Notes |
 |------------|---------|-------------------------------------------------|-------|
 | Python     | 3.14    | `.python-version`, `requires-python`             | Fallback to 3.13 if a dependency blocks |
-| PostgreSQL | 17      | `compose.yaml` (issue #6)                        | Chosen for the planned Amazon RDS target |
+| PostgreSQL | 17 (`postgres:17@sha256:d74eeac9…ec46f`) | `compose.yaml`, `test` job service in `.github/workflows/ci.yml` | Debian variant (glibc collations, like RDS). Dependabot updates `compose.yaml` only: align the CI digest by hand |
+
+## Application libraries
+
+| Library           | Version | Where it is pinned |
+|-------------------|---------|--------------------|
+| SQLAlchemy        | 2.1.1   | `uv.lock`          |
+| Alembic           | 1.20.0  | `uv.lock`          |
+| psycopg           | 3.3.6   | `uv.lock`          |
+| pydantic-settings | 2.15.0  | `uv.lock`          |
 
 ## Development tools
 
