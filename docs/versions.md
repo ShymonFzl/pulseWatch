@@ -8,6 +8,8 @@ Python packages are pinned exactly in `uv.lock`. This table records the versions
 | Component  | Version | Where it is pinned                              | Notes |
 |------------|---------|-------------------------------------------------|-------|
 | Python     | 3.14    | `.python-version`, `requires-python`             | Fallback to 3.13 if a dependency blocks |
+| Python base image | `python:3.14-slim-trixie@sha256:51dafde8…5b3d` | `Dockerfile` (`builder` and `runtime` stages) | Updated by Dependabot (`docker`) |
+| uv image | `ghcr.io/astral-sh/uv:0.12.19@sha256:04d046b1…f424` | `Dockerfile` (`uv` stage) | Keep aligned with the local uv version |
 | PostgreSQL | 17 (`postgres:17@sha256:d74eeac9…ec46f`) | `compose.yaml`, `test` job service in `.github/workflows/ci.yml` | Debian variant (glibc collations, like RDS). Dependabot updates `compose.yaml` only: align the CI digest by hand |
 
 ## Application libraries
@@ -45,3 +47,10 @@ Actions are pinned by commit SHA in `.github/workflows/`, and Dependabot updates
 | Runner image       | ubuntu-24.04 |
 | actions/checkout   | v7.0.1       |
 | astral-sh/setup-uv | v10.2.0      |
+
+## Container tooling
+
+| Tool     | Version | Use |
+|----------|---------|-----|
+| hadolint | v2.15.1 (`hadolint/hadolint:v2.15.1`) | Dockerfile lint |
+| Trivy    | 0.74.0 (`aquasec/trivy:0.74.0`)       | Image and config scanning |

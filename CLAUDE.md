@@ -8,6 +8,7 @@ Uptime monitoring platform built with production practices: containers, infrastr
 - Record every architecture decision as an ADR in `docs/adr/`.
 - One issue per task, one pull request per change, conventional commit messages.
 - PR descriptions cover the change only: no notes about the local development environment.
+- Issues, pull requests and commit messages are written in English.
 
 ## Quality gates
 - After each change, run the relevant checks: tests, `terraform fmt` and `validate`, `helm lint`, `trivy`.
