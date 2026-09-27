@@ -1,3 +1,32 @@
+# Local stack: cp .env.example .env && docker compose up --build
+# Credentials come from the local .env (ignored by Git), used for interpolation only.
+
+x-database-url: &database-url postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}
+
+# migrate and api share one image, built once from the api target (#11).
+x-api-image: &api-image
+  image: pulsewatch-api:local
+  build:
+    context: .
+    target: api
+
+# Hardening of the application containers: read-only root filesystem, no
+# capability, no privilege escalation. They run as UID 10001 (Dockerfile).
+x-hardening: &hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+x-after-migrations: &after-migrations
+  db:
+    condition: service_healthy
+  migrate:
+    condition: service_completed_successfully
+
 services:
   db:
     image: postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
@@ -15,6 +44,45 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # One-shot job: brings the schema to the latest migration, then exits (ADR 0002).
+  migrate:
+    <<: [*api-image, *hardening]
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: [*api-image, *hardening]
+    environment:
+      DATABASE_URL: *database-url
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on: *after-migrations
+    restart: unless-stopped
+
+  # A single replica (ADR 0005): more would probe every site several times.
+  worker:
+    <<: *hardening
+    image: pulsewatch-worker:local
+    build:
+      context: .
+      target: worker
+    environment:
+      DATABASE_URL: *database-url
+      PROBE_INTERVAL_SECONDS: ${PROBE_INTERVAL_SECONDS:-60}
+      PROBE_TIMEOUT_SECONDS: ${PROBE_TIMEOUT_SECONDS:-10}
+      PROBE_CONCURRENCY: ${PROBE_CONCURRENCY:-20}
+    ports:
+      - "127.0.0.1:9100:9100"
+    depends_on: *after-migrations
+    # A tick in progress (probe timeout + database write) finishes before exit.
+    stop_grace_period: 30s
+    restart: unless-stopped
 
 volumes:
   pgdata:
