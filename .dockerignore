@@ -1,0 +1,10 @@
+# Allowlist: only what the images need enters the build context.
+# .env, .git, .venv, tests and caches can never be sent to the builder.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!alembic.ini
+!migrations/
+**/__pycache__
