@@ -44,6 +44,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    # Comes back after a Docker restart, like api and worker.
+    restart: unless-stopped
 
   # One-shot job: brings the schema to the latest migration, then exits (ADR 0002).
   migrate:
