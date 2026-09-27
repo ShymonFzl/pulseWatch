@@ -74,3 +74,8 @@ def migrated_database_url() -> Iterator[URL]:
 @pytest.fixture(scope="session")
 def alembic_config() -> Callable[[URL], Config]:
     return _alembic_config
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
