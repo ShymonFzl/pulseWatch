@@ -1,11 +1,10 @@
 import ipaddress
-import socket
 
 import pytest
 
 from pulsewatch.worker.prober import create_probe_client, probe
 from pulsewatch.worker.ssrf import DNSResolutionError, IPAddress
-from tests.worker.fake_site import FakeSite
+from tests.worker.fake_site import FakeSite, free_port
 
 pytestmark = pytest.mark.anyio
 
@@ -62,10 +61,7 @@ async def test_dns_failure() -> None:
 
 
 async def test_connection_refused() -> None:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-    # Nothing listens on this port any more.
+    port = free_port()
 
     async with create_probe_client(TIMEOUT, policy=allow_only_127_0_0_1) as client:
         result = await probe(client, f"http://127.0.0.1:{port}/", TIMEOUT)

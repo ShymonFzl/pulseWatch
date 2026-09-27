@@ -26,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from pulsewatch.config import Settings
 from pulsewatch.db.engine import create_engine, create_sessionmaker
 from pulsewatch.db.models import Check, Site
+from pulsewatch.metrics import create_registry
+from pulsewatch.worker.metrics import WorkerMetrics, start_metrics_server
 from pulsewatch.worker.prober import ProbeResult, create_probe_client, probe
 from pulsewatch.worker.ssrf import AddressPolicy, is_public_address
 
@@ -79,6 +81,7 @@ async def run_tick(
     sessionmaker: async_sessionmaker[AsyncSession],
     client: httpx2.AsyncClient,
     settings: Settings,
+    metrics: WorkerMetrics | None = None,
 ) -> int:
     """Probe every site once and store the results. Returns the number of checks saved."""
     async with sessionmaker() as session:
@@ -91,6 +94,8 @@ async def run_tick(
             return site_id, await probe(client, url, settings.probe_timeout_seconds)
 
     results = await asyncio.gather(*(probe_site(site.id, site.url) for site in sites))
+    if metrics is not None:
+        metrics.record_probes(results)
     return await save_results(sessionmaker, results)
 
 
@@ -99,6 +104,7 @@ async def run(
     stop: asyncio.Event,
     *,
     policy: AddressPolicy = is_public_address,
+    metrics: WorkerMetrics | None = None,
 ) -> None:
     """Run ticks at a fixed rate until stop is set."""
     loop = asyncio.get_running_loop()
@@ -112,11 +118,17 @@ async def run(
             while not stop.is_set():
                 started = loop.time()
                 try:
-                    saved = await run_tick(sessionmaker, client, settings)
-                    logger.info("Tick done: %d checks in %.2fs", saved, loop.time() - started)
+                    saved = await run_tick(sessionmaker, client, settings, metrics)
                 except Exception:
                     # For example the database is down: log it and retry at the next tick.
                     logger.exception("Tick failed")
+                    if metrics is not None:
+                        metrics.record_tick_failure()
+                else:
+                    duration = loop.time() - started
+                    logger.info("Tick done: %d checks in %.2fs", saved, duration)
+                    if metrics is not None:
+                        metrics.record_tick_success(duration)
 
                 next_tick += interval
                 if loop.time() > next_tick:
@@ -137,7 +149,14 @@ async def _main() -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         # The current tick finishes (bounded by the probe timeout), then the loop exits.
         loop.add_signal_handler(sig, stop.set)
-    await run(settings, stop)
+
+    registry = create_registry()
+    metrics_server = start_metrics_server(settings, registry)
+    logger.info("Metrics on http://%s:%s/metrics", settings.metrics_host, settings.metrics_port)
+    try:
+        await run(settings, stop, metrics=WorkerMetrics(registry))
+    finally:
+        metrics_server.shutdown()
 
 
 def main() -> None:

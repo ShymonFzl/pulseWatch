@@ -12,3 +12,4 @@ ADRs are numbered in order and never rewritten: a changed decision gets a new AD
 | [0005](0005-worker-model.md) | Polling worker: a separate asyncio process | Accepted |
 | [0006](0006-container-registry.md) | Container registry: build only in v0.1, Amazon ECR with OIDC in v0.2 | Accepted |
 | [0007](0007-ssrf-protection.md) | SSRF protection for outgoing probes | Accepted |
+| [0008](0008-prometheus-metrics.md) | Prometheus metrics | Accepted |

@@ -5,11 +5,13 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from prometheus_client import CollectorRegistry
 from sqlalchemy import URL, create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -17,8 +19,9 @@ from pulsewatch.config import Settings
 from pulsewatch.db.engine import create_engine as create_async_engine
 from pulsewatch.db.engine import create_sessionmaker
 from pulsewatch.worker.main import run_tick, save_results
+from pulsewatch.worker.metrics import WorkerMetrics
 from pulsewatch.worker.prober import ProbeResult, create_probe_client
-from tests.worker.fake_site import FakeSite
+from tests.worker.fake_site import FakeSite, free_port
 from tests.worker.test_prober import allow_only_127_0_0_1
 
 pytestmark = [pytest.mark.db, pytest.mark.anyio]
@@ -78,6 +81,22 @@ async def test_tick_stores_one_check_per_site(
     assert by_site[metadata].error.startswith("blocked_address")
 
 
+async def test_tick_updates_metrics(
+    settings: Settings, sessionmaker: async_sessionmaker[AsyncSession], fake_site: FakeSite
+) -> None:
+    up = await add_site(sessionmaker, "up", fake_site.url("/ok"))
+    down = await add_site(sessionmaker, "down", fake_site.url("/error"))
+    registry = CollectorRegistry()
+
+    async with create_probe_client(1, policy=allow_only_127_0_0_1) as client:
+        await run_tick(sessionmaker, client, settings, WorkerMetrics(registry))
+
+    assert registry.get_sample_value("pulsewatch_site_up", {"site_id": str(up)}) == 1
+    assert registry.get_sample_value("pulsewatch_site_up", {"site_id": str(down)}) == 0
+    assert registry.get_sample_value("pulsewatch_probes_total", {"result": "ok"}) == 1
+    assert registry.get_sample_value("pulsewatch_probes_total", {"result": "http_status"}) == 1
+
+
 async def test_results_of_deleted_sites_are_skipped(
     sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -98,11 +117,15 @@ async def test_results_of_deleted_sites_are_skipped(
     assert site_ids == [kept]
 
 
-def test_worker_stops_cleanly_on_sigterm(settings: Settings, tmp_path: Path) -> None:
+def test_worker_serves_metrics_and_stops_cleanly_on_sigterm(
+    settings: Settings, tmp_path: Path
+) -> None:
+    metrics_port = free_port()
     env = {
         **os.environ,
         "DATABASE_URL": str(settings.database_url),
         "PROBE_INTERVAL_SECONDS": "5",
+        "METRICS_PORT": str(metrics_port),
     }
     # cwd=tmp_path: no local .env is read.
     process = subprocess.Popen(
@@ -134,6 +157,11 @@ def test_worker_stops_cleanly_on_sigterm(settings: Settings, tmp_path: Path) -> 
 
     try:
         wait_for("Tick done", timeout=15)
+        metrics_url = f"http://127.0.0.1:{metrics_port}/metrics"
+        with urllib.request.urlopen(metrics_url, timeout=5) as response:
+            body = response.read().decode()
+        assert 'pulsewatch_worker_ticks_total{result="success"}' in body
+
         process.send_signal(signal.SIGTERM)
         assert process.wait(timeout=15) == 0
         wait_for("Worker stopped", timeout=1)

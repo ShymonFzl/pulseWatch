@@ -17,6 +17,7 @@ Python packages are pinned exactly in `uv.lock`. This table records the versions
 | FastAPI           | 0.141.1 | `uv.lock`          |
 | uvicorn           | 0.54.0  | `uv.lock`          |
 | httpx2            | 2.13.1  | `uv.lock` (worker probes, ADR 0007; also the FastAPI test client) |
+| prometheus-client | 0.26.0  | `uv.lock` (ADR 0008) |
 | SQLAlchemy        | 2.1.1   | `uv.lock`          |
 | Alembic           | 1.20.0  | `uv.lock`          |
 | psycopg           | 3.3.6   | `uv.lock`          |

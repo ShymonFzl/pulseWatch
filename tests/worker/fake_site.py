@@ -1,3 +1,4 @@
+import socket
 import threading
 import time
 from collections.abc import Iterator
@@ -67,3 +68,11 @@ def serve_fake_site() -> Iterator[FakeSite]:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def free_port() -> int:
+    """A local TCP port with nothing listening on it."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port: int = sock.getsockname()[1]
+    return port
