@@ -15,3 +15,8 @@ class Settings(BaseSettings):
     # Total budget of one probe, redirects included.
     probe_timeout_seconds: float = Field(default=10, gt=0, le=60)
     probe_concurrency: int = Field(default=20, ge=1, le=200)
+
+    # Prometheus metrics of the worker, on a dedicated port. Local default:
+    # loopback only; containers set METRICS_HOST=0.0.0.0.
+    metrics_host: str = "127.0.0.1"
+    metrics_port: int = Field(default=9100, ge=1, le=65535)

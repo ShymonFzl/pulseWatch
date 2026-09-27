@@ -36,6 +36,11 @@ class ProbeResult:
     # Time until the final response headers, redirects included.
     response_time_ms: int | None = None
     error: str | None = None
+    # Metrics only, not stored: "ok", "http_status" (a response with a failing
+    # status) or the error category (timeout, dns_error, blocked_address...).
+    category: str = "ok"
+    # Whole probe, failures included.
+    duration_seconds: float = 0.0
 
 
 def create_probe_client(
@@ -81,29 +86,38 @@ async def probe(client: httpx2.AsyncClient, url: str, timeout: float) -> ProbeRe
     """Probe a URL; never raises, failures are returned as results."""
     checked_at = datetime.now(UTC)
     started = time.perf_counter()
+
+    def failure(category: str, detail: object = "") -> ProbeResult:
+        return ProbeResult(
+            checked_at,
+            ok=False,
+            error=_error(category, detail),
+            category=category,
+            duration_seconds=time.perf_counter() - started,
+        )
+
     try:
         # Total budget for the probe, redirects included.
         async with asyncio.timeout(timeout), client.stream("GET", url) as response:
             # Only the status and headers are read, never the body.
-            elapsed_ms = round((time.perf_counter() - started) * 1000)
+            elapsed = time.perf_counter() - started
             status_code = response.status_code
     except TimeoutError, httpx2.TimeoutException:
-        return ProbeResult(
-            checked_at, ok=False, error=_error("timeout", f"no response in {timeout}s")
-        )
+        return failure("timeout", f"no response in {timeout}s")
     except httpx2.TooManyRedirects as exc:
-        return ProbeResult(checked_at, ok=False, error=_error("too_many_redirects", exc))
+        return failure("too_many_redirects", exc)
     except httpx2.RequestError as exc:
-        return ProbeResult(checked_at, ok=False, error=_error(_error_category(exc), exc))
+        return failure(_error_category(exc), exc)
     except Exception as exc:
         # A single site must never crash the worker.
         logger.exception("Unexpected error while probing %s", url)
-        return ProbeResult(
-            checked_at, ok=False, error=_error("unexpected_error", type(exc).__name__)
-        )
+        return failure("unexpected_error", type(exc).__name__)
+    ok = 200 <= status_code < 400
     return ProbeResult(
         checked_at,
-        ok=200 <= status_code < 400,
+        ok=ok,
         status_code=status_code,
-        response_time_ms=elapsed_ms,
+        response_time_ms=round(elapsed * 1000),
+        category="ok" if ok else "http_status",
+        duration_seconds=elapsed,
     )
