@@ -78,12 +78,11 @@ curl -s -X POST http://127.0.0.1:8000/sites \
 {"id":1,"name":"Example","url":"https://example.com/","created_at":"2026-09-29T12:00:00.000000Z"}
 ```
 
-List, read and delete sites:
+List the sites and read one:
 
 ```bash
 curl -s http://127.0.0.1:8000/sites
 curl -s http://127.0.0.1:8000/sites/1
-curl -s -o /dev/null -w '%{http_code}\n' -X DELETE http://127.0.0.1:8000/sites/1
 ```
 
 | Case | Status |
@@ -120,6 +119,14 @@ docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
 ```
 
 Blocked targets (private or internal addresses) are recorded as failed checks, with an error starting with `blocked_address`.
+
+### Stop monitoring a site
+
+Deleting a site also deletes its checks:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X DELETE http://127.0.0.1:8000/sites/1
+```
 
 ## Configuration
 
