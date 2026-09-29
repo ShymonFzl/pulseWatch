@@ -5,6 +5,9 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # Weekly rescan of main: catches vulnerabilities published after a merge.
+  schedule:
+    - cron: "0 6 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -81,3 +84,100 @@ jobs:
       # CI=true (set by GitHub) makes database tests fail instead of skip.
       - name: pytest
         run: uv run pytest
+
+  # Build each image (no push, ADR 0006) and fail on fixable HIGH/CRITICAL vulnerabilities.
+  image:
+    name: image (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      security-events: write # SARIF upload to the Security tab
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [api, worker]
+    env:
+      IMAGE: pulsewatch-${{ matrix.target }}:ci
+      # Official image pinned by digest rather than a third-party wrapper action.
+      TRIVY: aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+      TRIVY_CACHE: ${{ github.workspace }}/.trivy-cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          tags: ${{ env.IMAGE }}
+          push: false
+          load: true
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+      - name: Cache key of the day
+        id: day
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      # The vulnerability database is downloaded once a day, not on every run.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .trivy-cache
+          key: trivy-db-${{ steps.day.outputs.date }}
+          restore-keys: trivy-db-
+
+      - name: Trivy SARIF report
+        run: >-
+          docker run --rm
+          -v /var/run/docker.sock:/var/run/docker.sock
+          -v "$TRIVY_CACHE":/root/.cache/trivy
+          -v "$PWD":/out
+          "$TRIVY" image --quiet --severity HIGH,CRITICAL --ignore-unfixed
+          --format sarif --output "/out/trivy-${{ matrix.target }}.sarif" "$IMAGE"
+
+      - name: Trivy gate (fixable HIGH and CRITICAL)
+        run: >-
+          docker run --rm
+          -v /var/run/docker.sock:/var/run/docker.sock
+          -v "$TRIVY_CACHE":/root/.cache/trivy
+          "$TRIVY" image --quiet --skip-db-update --severity HIGH,CRITICAL --ignore-unfixed
+          --exit-code 1 "$IMAGE"
+
+      # Always uploaded, so findings reach the Security tab even when the gate fails.
+      - name: Upload SARIF
+        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.target)) != ''
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: trivy-${{ matrix.target }}.sarif
+          category: trivy-${{ matrix.target }}
+
+  # Dockerfile lint and misconfigurations; compose.yaml validation
+  # (Trivy has no scanner for compose files).
+  container-config:
+    name: container-config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      HADOLINT: hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+      TRIVY: aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: hadolint
+        run: docker run --rm -i "$HADOLINT" < Dockerfile
+
+      - name: Trivy config (Dockerfile)
+        run: docker run --rm -v "$PWD":/src:ro "$TRIVY" config --quiet --exit-code 1 /src/Dockerfile
+
+      - name: Validate compose.yaml
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
