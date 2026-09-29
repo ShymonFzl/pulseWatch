@@ -219,4 +219,4 @@ Issues and milestones are tracked on [GitHub](https://github.com/ShymonFzl/pulse
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © Shymon Foyzul
