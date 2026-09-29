@@ -47,10 +47,16 @@ Actions are pinned by commit SHA in `.github/workflows/`, and Dependabot updates
 | Runner image       | ubuntu-24.04 |
 | actions/checkout   | v7.0.1       |
 | astral-sh/setup-uv | v10.2.0      |
+| docker/setup-buildx-action | v4.4.1 |
+| docker/build-push-action   | v7.4.0 |
+| github/codeql-action (upload-sarif) | v4.38.2 |
+| actions/cache      | v6.1.0       |
 
 ## Container tooling
 
 | Tool     | Version | Use |
 |----------|---------|-----|
-| hadolint | v2.15.1 (`hadolint/hadolint:v2.15.1`) | Dockerfile lint |
-| Trivy    | 0.74.0 (`aquasec/trivy:0.74.0`)       | Image and config scanning |
+| hadolint | v2.15.1 (`hadolint/hadolint:v2.15.1@sha256:32dac941…a12d`) | Dockerfile lint (CI job `container-config`) |
+| Trivy    | 0.74.0 (`aquasec/trivy:0.74.0@sha256:62b1e65e…1969`)       | Image scan (CI job `image`) and Dockerfile config scan (`container-config`) |
+
+CI runs both tools from their official images, pinned by digest in `.github/workflows/ci.yml`. Dependabot does not update image references inside workflow steps: bump these digests by hand, together with this table.
