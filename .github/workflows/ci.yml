@@ -121,6 +121,10 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
 
+      # Trivy scans an image archive: no Docker socket in the scanner container.
+      - name: Export image
+        run: docker save "$IMAGE" -o "$RUNNER_TEMP/image.tar"
+
       - name: Cache key of the day
         id: day
         run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
@@ -132,22 +136,24 @@ jobs:
           key: trivy-db-${{ steps.day.outputs.date }}
           restore-keys: trivy-db-
 
+      # Trivy runs as the runner user, so the cache it writes can be saved.
       - name: Trivy SARIF report
         run: >-
-          docker run --rm
-          -v /var/run/docker.sock:/var/run/docker.sock
-          -v "$TRIVY_CACHE":/root/.cache/trivy
+          mkdir -p "$TRIVY_CACHE" &&
+          docker run --rm --user "$(id -u):$(id -g)"
+          -v "$TRIVY_CACHE":/cache
+          -v "$RUNNER_TEMP":/in:ro
           -v "$PWD":/out
-          "$TRIVY" image --quiet --severity HIGH,CRITICAL --ignore-unfixed
-          --format sarif --output "/out/trivy-${{ matrix.target }}.sarif" "$IMAGE"
+          "$TRIVY" image --quiet --cache-dir /cache --severity HIGH,CRITICAL --ignore-unfixed
+          --format sarif --output "/out/trivy-${{ matrix.target }}.sarif" --input /in/image.tar
 
       - name: Trivy gate (fixable HIGH and CRITICAL)
         run: >-
-          docker run --rm
-          -v /var/run/docker.sock:/var/run/docker.sock
-          -v "$TRIVY_CACHE":/root/.cache/trivy
-          "$TRIVY" image --quiet --skip-db-update --severity HIGH,CRITICAL --ignore-unfixed
-          --exit-code 1 "$IMAGE"
+          docker run --rm --user "$(id -u):$(id -g)"
+          -v "$TRIVY_CACHE":/cache
+          -v "$RUNNER_TEMP":/in:ro
+          "$TRIVY" image --quiet --cache-dir /cache --skip-db-update
+          --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --input /in/image.tar
 
       # Always uploaded, so findings reach the Security tab even when the gate fails.
       - name: Upload SARIF
